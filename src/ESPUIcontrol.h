@@ -31,6 +31,8 @@ enum ControlType : uint8_t
     Separator,
     Time,
     FileDisplay,
+    LocalTime,
+    TimeFetcher,
 
     Fragment = 98,
     Password = 99,
@@ -82,11 +84,12 @@ public:
     Control(const Control& Control);
 
     void SendCallback(int type);
+    void SendCallback(Control* control, int type);
     bool HasCallback() { return (nullptr != callback); }
     bool MarshalControl(ArduinoJson::JsonObject& item, bool refresh, uint32_t DataOffset, uint32_t MaxLength, uint32_t & EstimmatedUsedSpace);
     void MarshalErrorMessage(ArduinoJson::JsonObject& item);
     void DeleteControl();
-    void onWsEvent(String& cmd, String& data);
+    bool onWsEvent(String& cmd, String& data);
     inline bool ToBeDeleted() { return _ToBeDeleted; }
     inline bool NeedsSync(uint32_t lastControlChangeID) {return (false == _ToBeDeleted) && (lastControlChangeID < ControlChangeID);}
     void    SetControlChangedId(uint32_t value) {ControlChangeID = value;}

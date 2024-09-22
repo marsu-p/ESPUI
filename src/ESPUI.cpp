@@ -428,7 +428,12 @@ void ESPUIClass::prepareFileSystem(bool format)
 void ESPUIClass::onWsEvent(
     AsyncWebSocket* server, AsyncWebSocketClient* client, AwsEventType type, void* arg, uint8_t* data, size_t len)
 {
-    // Serial.println(String("ESPUIClass::OnWsEvent: type: ") + String(type));
+    #if defined(DEBUG_ESPUI)
+        if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+        {
+            Serial.println(String("ESPUIClass::OnWsEvent: type: ") + String(type));
+        }
+    #endif
     RemoveToBeDeletedControls();
 
     if (WS_EVT_DISCONNECT == type)
@@ -462,7 +467,12 @@ void ESPUIClass::onWsEvent(
 
         if(MapOfClients[client->id()]->onWsEvent(type, arg, data, len))
         {
-            // Serial.println("ESPUIClass::OnWsEvent:notify the clients that they need to be updated.");
+            #if defined(DEBUG_ESPUI)
+                if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+                {
+                    Serial.println("ESPUIClass::OnWsEvent:notify the clients that they need to be updated.");
+                }
+            #endif
             NotifyClients(ESPUIclient::UpdateNeeded);
         }
     }
@@ -720,6 +730,13 @@ void ESPUIClass::updateControl(Control* control, int)
     {
         return;
     }
+    #if defined(DEBUG_ESPUI)
+        if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+        {
+            Serial.println(String("ESPUIClass::updateControl: updating control ") + String(control->id));
+        }
+    #endif
+
     // tell the control it has been updated
     control->SetControlChangedId(ESPUI.GetNextControlChangeId());
     NotifyClients(ClientUpdateType_t::UpdateNeeded);
@@ -1006,7 +1023,7 @@ void ESPUIClass::jsonReload()
 {
     for (auto& CurrentClient : MapOfClients)
     {
-        // Serial.println("Requesting Reload");
+        Serial.println("Requesting Reload");
         CurrentClient.second->NotifyClient(ClientUpdateType_t::ReloadNeeded);
     }
 }

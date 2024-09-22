@@ -38,7 +38,14 @@ void Control::SendCallback(int type)
 {
     if(callback)
     {
-        callback(this, type);
+        SendCallback(this, type);
+    }
+}
+void Control::SendCallback(Control* control, int type)
+{
+    if(callback)
+    {
+        callback(control, type);
     }
 }
 
@@ -202,11 +209,18 @@ void Control::MarshalErrorMessage(JsonObject & item)
     }
 }
 
-void Control::onWsEvent(String & cmd, String& data)
+bool Control::onWsEvent(String & cmd, String& data)
 {
+    bool Response = true;
     do // once
     {
         // Serial.println(String(F("Control::onWsEvent")));
+        #if defined(DEBUG_ESPUI)
+            if (ESPUI.verbosity)
+            {
+                Serial.println(String(F("Control::onWsEvent:cmd: ")) + String(cmd) + F(", data: ") + String(data));
+            }
+        #endif
         SetControlChangedId(ESPUI.GetNextControlChangeId());
         if (!HasCallback())
         {
@@ -321,7 +335,16 @@ void Control::onWsEvent(String & cmd, String& data)
         {
             value = data;
             // updateControl(c, client->id());
+            Response = false;
             SendCallback(TM_VALUE);
+        }
+        else if (cmd.equals(F("localtime")))
+        {
+            Control* _parentControl = ESPUI.getControlNoLock(parentControl);
+            _parentControl->value = data;
+            // updateControl(c, client->id());
+            Response = false;
+            SendCallback(_parentControl, TM_VALUE);
         }
         else
         {
@@ -333,4 +356,6 @@ void Control::onWsEvent(String & cmd, String& data)
             #endif
         }
     } while (false);
+
+    return Response;
 }

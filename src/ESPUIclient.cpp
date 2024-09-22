@@ -122,6 +122,13 @@ bool ESPUIclient::SendClientNotification(ClientUpdateType_t value)
 
 void ESPUIclient::NotifyClient(ClientUpdateType_t newState)
 {
+    #if defined(DEBUG_ESPUI)
+        if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+        {
+            Serial.println(String("Setting state ") + String(newState));
+        }
+    #endif
+
     SetState(newState);
     pCurrentFsmState->NotifyClient();
 }
@@ -198,8 +205,12 @@ bool ESPUIclient::onWsEvent(AwsEventType type, void* arg, uint8_t* data, size_t 
 
             if (cmd.equals(F("uiok")))
             {
-                
-                // Serial.println(String(F("ESPUIclient::OnWsEvent:WS_EVT_DATA:uiok:ProcessAck:")) + pCurrentFsmState->GetStateName());
+                #if defined(DEBUG_ESPUI)
+                    if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+                    {
+                        Serial.println(String(F("ESPUIclient::OnWsEvent:WS_EVT_DATA:uiok:ProcessAck:")) + pCurrentFsmState->GetStateName());
+                    }
+                #endif
                 pCurrentFsmState->ProcessAck(id, emptyString);
                 break;
             }
@@ -237,9 +248,10 @@ bool ESPUIclient::onWsEvent(AwsEventType type, void* arg, uint8_t* data, size_t 
                 #endif
                 break;
             }
-            control->onWsEvent(cmd, value);
+            Response = control->onWsEvent(cmd, value);
+
             // notify other clients of change
-            Response = true;
+            // Response = true;
             break;
         }
 
@@ -285,11 +297,15 @@ uint32_t ESPUIclient::prepareJSONChunk(uint16_t startindex,
 
         if(!emptyString.equals(FragmentRequestString))
         {
-            // Serial.println(F("prepareJSONChunk:Fragmentation:Got Header (1)"));
-            // Serial.println(String("prepareJSONChunk:startindex:                  ") + String(startindex));
-            // Serial.println(String("prepareJSONChunk:currentIndex:                ") + String(currentIndex));
-            // Serial.println(String("prepareJSONChunk:FragmentRequestString:      '") + FragmentRequestString + "'");
-
+            #if defined(DEBUG_ESPUI)
+                if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+                {
+                    Serial.println(F("prepareJSONChunk:Fragmentation:Got Header (1)"));
+                    Serial.println(String("prepareJSONChunk:startindex:                  ") + String(startindex));
+                    Serial.println(String("prepareJSONChunk:currentIndex:                ") + String(currentIndex));
+                    Serial.println(String("prepareJSONChunk:FragmentRequestString:      '") + FragmentRequestString + "'");
+                }
+            #endif
             // this is actually a fragment or directed update request
             // parse the string we got from the UI and try to update that specific 
             // control.
@@ -330,7 +346,7 @@ uint32_t ESPUIclient::prepareJSONChunk(uint16_t startindex,
                 break;
             }
 
-            // Serial.println(F("prepareJSONChunk:Fragmentation:disable the control search operation"));
+            Serial.println(F("prepareJSONChunk:Fragmentation:disable the control search operation"));
             currentIndex = 1;
             startindex = 0;
             SingleControl = true;
@@ -362,7 +378,7 @@ uint32_t ESPUIclient::prepareJSONChunk(uint16_t startindex,
         // any controls left to be processed?
         if(nullptr == control)
         {
-            // Serial.println("prepareJSONChunk: No controls to process");
+            Serial.println("prepareJSONChunk: No controls to process");
             break;
         }
 
@@ -374,7 +390,7 @@ uint32_t ESPUIclient::prepareJSONChunk(uint16_t startindex,
             // skip deleted controls or controls that have not been updated
             if (control->ToBeDeleted() && !SingleControl)
             {
-                // Serial.println(String("prepareJSONChunk: Ignoring Deleted control: ") + String(control->id));
+                Serial.println(String("prepareJSONChunk: Ignoring Deleted control: ") + String(control->id));
                 control = control->next;
                 continue;
             }
@@ -383,6 +399,20 @@ uint32_t ESPUIclient::prepareJSONChunk(uint16_t startindex,
             {
                 if(control->NeedsSync(CurrentSyncID))
                 {
+                    #if defined(DEBUG_ESPUI)
+                        if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+                        {
+                            Serial.println(String(F("prepareJSONChunk: updating control: ")) + String(control->type));
+                        }
+                    #endif
+
+                    // skip time / localtime
+                    if(control->type == LocalTime || control->type == Time) {
+                        Serial.println(String(F("prepareJSONChunk: skipping time / localtime ")));
+                        control = control->next;
+                        continue;
+                    }
+
                     // dont skip this control
                 }
                 else
@@ -393,8 +423,13 @@ uint32_t ESPUIclient::prepareJSONChunk(uint16_t startindex,
                 }
             }
 
-            // Serial.println(String(F("prepareJSONChunk: MaxMarshaledJsonSize: ")) + String(MaxMarshaledJsonSize));
-            // Serial.println(String(F("prepareJSONChunk: Cur EstimatedUsedMarshaledJsonSize: ")) + String(EstimatedUsedMarshaledJsonSize));
+            #if defined(DEBUG_ESPUI)
+                if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+                {
+                    Serial.println(String(F("prepareJSONChunk: MaxMarshaledJsonSize: ")) + String(MaxMarshaledJsonSize));
+                    Serial.println(String(F("prepareJSONChunk: Cur EstimatedUsedMarshaledJsonSize: ")) + String(EstimatedUsedMarshaledJsonSize));
+                }
+            #endif
 
             JsonObject item = AllocateJsonObject(items);
             elementcount++;
@@ -406,16 +441,25 @@ uint32_t ESPUIclient::prepareJSONChunk(uint16_t startindex,
                                                                DataOffset, 
                                                                RemainingSpace,
                                                                SpaceUsedByMarshaledControl);
-            // Serial.println(String(F("prepareJSONChunk: SpaceUsedByMarshaledControl: ")) + String(SpaceUsedByMarshaledControl));
             EstimatedUsedMarshaledJsonSize += SpaceUsedByMarshaledControl;
-            // Serial.println(String(F("prepareJSONChunk: New EstimatedUsedMarshaledJsonSize: ")) + String(EstimatedUsedMarshaledJsonSize));
-            // Serial.println(String(F("prepareJSONChunk:                ControlIsFragmented: ")) + String(ControlIsFragmented));
-
+            #if defined(DEBUG_ESPUI)
+                if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+                {
+                    Serial.println(String(F("prepareJSONChunk: SpaceUsedByMarshaledControl: ")) + String(SpaceUsedByMarshaledControl));
+                    Serial.println(String(F("prepareJSONChunk: New EstimatedUsedMarshaledJsonSize: ")) + String(EstimatedUsedMarshaledJsonSize));
+                    Serial.println(String(F("prepareJSONChunk:                ControlIsFragmented: ")) + String(ControlIsFragmented));
+                }
+            #endif
             // did the control get added to the doc?
             if (0 == SpaceUsedByMarshaledControl || 
                 (ESPUI.jsonChunkNumberMax > 0 && (elementcount % ESPUI.jsonChunkNumberMax) == 0))
             {
-                // Serial.println( String("prepareJSONChunk: too much data in the message. Remove the last entry"));
+                #if defined(DEBUG_ESPUI)
+                    if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+                    {
+                        Serial.println( String("prepareJSONChunk: too much data in the message. Remove the last entry"));
+                    }
+                #endif
                 if (1 == elementcount)
                 {
                     // Serial.println(String(F("prepareJSONChunk: Control ")) + String(control->id) + F(" is too large to be sent to the browser."));
@@ -494,7 +538,12 @@ bool ESPUIclient::SendControlsToClient(uint16_t startidx, ClientUpdateType_t Tra
 
         else if ((startidx >= ESPUI.controlCount) && (emptyString.equals(FragmentRequest)))
         {
-            // Serial.println(F("ERROR:ESPUIclient:SendControlsToClient: No more controls to send."));
+            #if defined(DEBUG_ESPUI)
+                if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+                {
+                    Serial.println(F("ERROR:ESPUIclient:SendControlsToClient: No more controls to send."));
+                }
+            #endif
             Response = true;
             break;
         }
@@ -506,14 +555,23 @@ bool ESPUIclient::SendControlsToClient(uint16_t startidx, ClientUpdateType_t Tra
 
         if(0 == startidx)
         {
-            // Serial.println("ESPUIclient:SendControlsToClient: Tell client we are starting a transfer of controls.");
+            #if defined(DEBUG_ESPUI)
+                if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+                {
+                    Serial.println("ESPUIclient:SendControlsToClient: Tell client we are starting a transfer of controls.");
+                }
+            #endif
             document["type"] = (ClientUpdateType_t::RebuildNeeded == TransferMode) ? UI_INITIAL_GUI : UI_EXTEND_GUI;
             CurrentSyncID = NextSyncID;
             NextSyncID = ESPUI.GetNextControlChangeId();
         }
-        // Serial.println(String("ESPUIclient:SendControlsToClient:type: ") + String((uint32_t)document["type"]));
-
-        // Serial.println("ESPUIclient:SendControlsToClient: Build Controls.");
+        #if defined(DEBUG_ESPUI)
+            if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+            {
+                Serial.println(String("ESPUIclient:SendControlsToClient:type: ") + String((uint32_t)document["type"]));
+                Serial.println("ESPUIclient:SendControlsToClient: Build Controls.");
+            }
+        #endif
         if(prepareJSONChunk(startidx, document, ClientUpdateType_t::UpdateNeeded == TransferMode, FragmentRequest))
         {
             #if defined(DEBUG_ESPUI)
@@ -543,7 +601,12 @@ bool ESPUIclient::SendControlsToClient(uint16_t startidx, ClientUpdateType_t Tra
 
     } while(false);
 
-    // Serial.println(String("ESPUIclient:SendControlsToClient:Response: ") + String(Response));
+    #if defined(DEBUG_ESPUI)
+        if (ESPUI.verbosity >= Verbosity::VerboseJSON)
+        {
+            Serial.println(String("ESPUIclient:SendControlsToClient:Response: ") + String(Response));
+        }
+    #endif
     return Response;
 }
 
